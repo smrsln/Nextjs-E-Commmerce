@@ -1,13 +1,19 @@
 import { UserModel } from "@/models/User";
-import { connectToMongoDB } from "@/lib/db";
-import { compare, hash } from "bcrypt";
+import { compare, hash } from "bcryptjs";
 import { SignUpParams } from "@/types/index";
-import { getSession } from "next-auth/react";
 import { initSentry } from "@/lib/sentry";
+import { OAuth2Client } from "google-auth-library";
 
 export class AuthService {
-  constructor() {
+  private googleClient?: OAuth2Client;
+  private googleClientId?: string;
+
+  constructor(googleClientId?: string) {
     initSentry();
+    this.googleClientId = googleClientId;
+    if (this.googleClientId) {
+      this.googleClient = new OAuth2Client(this.googleClientId);
+    }
   }
 
   async signUp({ email, password }: SignUpParams) {
@@ -25,8 +31,7 @@ export class AuthService {
     return user;
   }
 
-  async signIn({ email, password }: SignUpParams) {
-    const db = await connectToMongoDB();
+  async signIn({ email, password }: { email: string; password: string }) {
     const user = await UserModel.findOne({ email });
     if (!user) {
       throw new Error("Invalid email or password");
@@ -35,17 +40,27 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new Error("Invalid email or password");
     }
-    const session = await getSession();
-    if (session) {
-      await db.collection("sessions").insertOne({
-        userId: user._id,
-        expires: session.expires,
-      });
-    }
+    return user;
   }
 
-  async signOut(session: any) {
-    const db = await connectToMongoDB();
-    await db.collection("sessions").deleteOne({ _id: session.id });
+  async signInWithGoogle(idToken: string) {
+    if (!this.googleClient) {
+      throw new Error("Google authentication is not supported");
+    }
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken,
+      audience: this.googleClientId,
+    });
+    const payload = ticket.getPayload();
+    const email = payload?.email;
+    let user = await UserModel.findOne({ email });
+    if (!user) {
+      user = new UserModel({
+        email,
+        role: "user",
+      });
+      await user.save();
+    }
+    return user;
   }
 }
