@@ -3,60 +3,21 @@ import { useState } from "react";
 import { AuthService } from "@/services/AuthService";
 import { Dialog, Transition } from "@headlessui/react";
 
-declare global {
-  interface Window {
-    gapi: any;
-  }
-}
-
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  async function handleGoogleSignIn() {
-    const auth2 = window.gapi.auth2.getAuthInstance();
-    try {
-      const googleUser = await auth2.signIn();
-      const idToken = googleUser.getAuthResponse().id_token;
-      const authService = new AuthService("YOUR_CLIENT_ID");
-      await authService.signInWithGoogle(idToken);
-    } catch (error: any) {
-      setErrorMessage(error.message);
-      setIsOpen(true);
-    }
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const authService = new AuthService("YOUR_CLIENT_ID");
+    const authService = new AuthService();
     try {
       await authService.signIn({ email, password });
     } catch (error: any) {
       setErrorMessage(error.message);
       setIsOpen(true);
     }
-  }
-
-  function handleEmailChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setEmail(event.target.value);
-  }
-
-  function handlePasswordChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setPassword(event.target.value);
-  }
-
-  function handleDialogClose() {
-    setIsOpen(false);
-  }
-
-  function handleGoogleSignInInit() {
-    window.gapi.load("auth2", () => {
-      window.gapi.auth2.init({
-        client_id: "YOUR_CLIENT_ID",
-      });
-    });
   }
 
   return (
@@ -68,12 +29,12 @@ export function LoginForm() {
             Email
           </label>
           <input
-            className="border rounded-lg py-2 px-3 w-full"
-            type="email"
+            className="border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="email"
+            type="email"
+            placeholder="Email"
             value={email}
-            onChange={handleEmailChange}
-            required
+            onChange={(event) => setEmail(event.target.value)}
           />
         </div>
         <div className="mb-4">
@@ -84,29 +45,21 @@ export function LoginForm() {
             Password
           </label>
           <input
-            className="border rounded-lg py-2 px-3 w-full"
-            type="password"
+            className="border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             id="password"
+            type="password"
+            placeholder="Password"
             value={password}
-            onChange={handlePasswordChange}
-            required
+            onChange={(event) => setPassword(event.target.value)}
           />
         </div>
         <button
-          className="bg-blue-500 text-white py-2 px-4 rounded-lg"
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           type="submit"
         >
           Sign In
         </button>
       </form>
-      <div className="mt-4">
-        <button
-          className="bg-red-500 text-white py-2 px-4 rounded-lg mr-2"
-          onClick={handleGoogleSignInInit}
-        >
-          Sign In with Google
-        </button>
-      </div>
       <Transition
         appear
         show={isOpen}
@@ -115,7 +68,7 @@ export function LoginForm() {
       >
         <Dialog.Title>Error</Dialog.Title>
         <Dialog.Description>{errorMessage}</Dialog.Description>
-        <button onClick={handleDialogClose}>Close</button>
+        <button onClick={() => setIsOpen(false)}>Close</button>
       </Transition>
     </>
   );

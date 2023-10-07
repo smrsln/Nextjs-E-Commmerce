@@ -1,52 +1,42 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
 import { AuthService } from "@/services/AuthService";
-import { SignUpParams } from "@/types/index";
+import { NextAuthUser, SignUpParams } from "@/types/AuthTypes";
 import { User, Account, Profile } from "next-auth";
+import { UserDocument } from "@/models/User";
 
 export class AuthController {
-  async googleSignIn(user: User, account: Account | null, profile?: Profile) {
-    const authService = new AuthService();
-    const email = profile?.email as string;
-    const password = account?.provider + "_" + account?.id;
-    await authService.signIn({ email, password });
-    return true;
+  private authService: AuthService;
+
+  constructor() {
+    this.authService = new AuthService();
   }
 
-  async facebookSignIn(
-    user: User,
-    account: Account | null,
-    profile?: Profile
-  ): Promise<boolean> {
-    const authService = new AuthService();
-    const email = profile?.email as string;
-    const password = account?.provider + "_" + account?.id;
-    await authService.signIn({ email, password });
-    return true;
+  async googleSignIn(profile: Profile): Promise<NextAuthUser | undefined> {
+    const user = await this.authService.signInWithGoogle(profile);
+    return user;
   }
 
-  async signIn(req: NextApiRequest, res: NextApiResponse) {
-    const { email, password }: SignUpParams = req.body;
-    const authService = new AuthService();
-    const user = await authService.signIn({ email, password });
-    res.status(200).json(user);
+  async facebookSignIn(profile: Profile): Promise<NextAuthUser | undefined> {
+    const user = await this.authService.signInWithFacebook(profile);
+    return user;
+  }
+
+  async signInWithPassword(req: NextApiRequest, res: NextApiResponse) {
+    const { email, password } = req.body;
+    const session = await this.authService.signInWithPassword({
+      email,
+      password,
+    });
+    res.status(200).json({ session });
   }
 
   async signUp(req: NextApiRequest, res: NextApiResponse) {
-    const { email, password }: SignUpParams = req.body;
-    const authService = new AuthService();
-    const user = await authService.signUp({ email, password });
-    res.status(201).json(user);
+    const { email, password } = req.body as SignUpParams;
+    const session = await this.authService.signUp({ email, password });
+    res.status(200).json({ session });
   }
 
   async signOut(req: NextApiRequest, res: NextApiResponse) {
-    const authService = new AuthService();
-    const session = await getSession({ req });
-    if (session) {
-      await authService.signOut(session);
-      res.status(200).end();
-    } else {
-      res.status(401).end();
-    }
+    await this.authService.signOut(req, res);
   }
 }

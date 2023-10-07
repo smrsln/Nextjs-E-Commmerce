@@ -1,18 +1,19 @@
-import exp from "constants";
 import { Document, model, Schema } from "mongoose";
 
-export interface IUser extends Document {
-  email?: string;
+export interface UserDocument extends Document {
+  email: string;
   phone?: string;
   image?: string;
   password: string;
   name: string;
   role: string;
+  googleId?: string;
+  facebookId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const UserSchema = new Schema<IUser>({
+const UserSchema = new Schema<UserDocument>({
   email: {
     type: String,
     unique: true,
@@ -62,6 +63,8 @@ const UserSchema = new Schema<IUser>({
     default: "user",
     enum: ["user", "admin", "moderator", "subscriber", "blocked", "deleted"],
   },
+  googleId: { type: String, unique: true, sparse: true, trim: true },
+  facebookId: { type: String, unique: true, sparse: true, trim: true },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -72,4 +75,4 @@ const UserSchema = new Schema<IUser>({
   },
 });
 
-export const UserModel = model<IUser>("User", UserSchema);
+export const UserModel = model<UserDocument>("User", UserSchema);
