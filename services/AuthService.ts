@@ -2,8 +2,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { compare, hash } from "bcryptjs";
 import { getSession } from "next-auth/react";
 import { UserDocument, UserModel } from "@/models/User";
-import type { NextAuthUser } from "@/types/AuthTypes";
-import type { Profile } from "next-auth";
+import type { GoogleProfile } from "next-auth/providers/google";
+import type { Profile, Session, User } from "next-auth";
+import { FacebookProfile } from "next-auth/providers/facebook";
 
 export class AuthService {
   async signUp({
@@ -38,7 +39,7 @@ export class AuthService {
   }: {
     email: string;
     password: string;
-  }): Promise<NextAuthUser> {
+  }): Promise<User | undefined> {
     const user = await UserModel.findOne({ email });
     if (!user) {
       throw new Error("Invalid email or password");
@@ -50,7 +51,7 @@ export class AuthService {
     const session = await getSession();
     if (session) {
       return {
-        id: user._id.toString(),
+        id: user.id,
         email: user.email,
         name: user.name,
         image: user.image,
@@ -60,14 +61,14 @@ export class AuthService {
     }
   }
 
-  async signInWithGoogle(profile: Profile): Promise<NextAuthUser | undefined> {
+  async signInWithGoogle(profile: GoogleProfile): Promise<User | undefined> {
     const email = profile.email as string;
     const user = await UserModel.findOne({ email });
     if (!user) {
       const newUser = new UserModel({
         email,
-        name: profile.name as string,
-        image: profile.image as string,
+        name: profile.given_name as string,
+        image: profile.picture as string,
         role: "user",
         googleId: profile.sub as string,
       });
@@ -80,8 +81,8 @@ export class AuthService {
       };
     } else if (!user.googleId) {
       user.googleId = profile.sub as string;
-      user.name = profile.name as string;
-      user.image = profile.image as string;
+      user.name = profile.given_name as string;
+      user.image = profile.picture as string;
       await user.save();
       return {
         id: user._id.toString(),
@@ -93,8 +94,8 @@ export class AuthService {
   }
 
   async signInWithFacebook(
-    profile: Profile
-  ): Promise<NextAuthUser | undefined> {
+    profile: FacebookProfile
+  ): Promise<User | undefined> {
     const email = profile.email as string;
     const user = await UserModel.findOne({ email });
     if (!user) {

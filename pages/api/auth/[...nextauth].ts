@@ -4,15 +4,25 @@ import GoogleProvider, { GoogleProfile } from "next-auth/providers/google";
 import FacebookProvider, {
   FacebookProfile,
 } from "next-auth/providers/facebook";
-import { AuthService } from "@/services/AuthService";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { AuthController } from "@/controllers/AuthController";
-import { NextAuthUser } from "@/types/AuthTypes";
 
-const authService = new AuthService();
 const authController = new AuthController();
 
 export default NextAuth({
   providers: [
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "text", placeholder: "jsmith" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const { email, password } = credentials;
+        const user = await authController.signInWithPassword(email, password);
+        return user ? { ...user, email } : null;
+      },
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
@@ -23,43 +33,45 @@ export default NextAuth({
     }),
   ],
   callbacks: {
-    async signIn(
-      user: User,
-      account: Account,
-      profile: GoogleProfile | FacebookProfile
-    ) {
+    async signIn(params) {
+      const { user, account, profile } = params;
       if (account?.provider === "google") {
-        if (account.provider === "google") {
-          return (
-            profile.email_verified && profile.email.endsWith("@example.com")
+        if ((profile as GoogleProfile)?.email_verified) {
+          const UserDocument = await authController.googleSignIn(
+            profile as GoogleProfile
           );
+          return UserDocument
+            ? { ...UserDocument, email: profile?.email }
+            : null;
         }
-        const nextAuthUser = await authController.googleSignIn(profile);
-        return nextAuthUser ? { ...nextAuthUser, email: profile.email } : null;
       } else if (account?.provider === "facebook") {
-        const nextAuthUser = await authController.facebookSignIn(profile);
-        return nextAuthUser ? { ...nextAuthUser, email: profile.email } : null;
-      } else if (user.email && user.password) {
-        const session = await authController.signInWithPassword(
-          user.email,
-          user.password
-        );
-        return session.user as NextAuthUser;
+        if ((profile as FacebookProfile)?.verified) {
+          const UserDocument = await authController.facebookSignIn(
+            profile as FacebookProfile
+          );
+          return UserDocument
+            ? { ...UserDocument, email: profile?.email }
+            : null;
+        }
+      } else if (user.email && "password" in user) {
+        const req = {
+          body: {
+            email: user.email,
+            password: user.password,
+          },
+        } as NextApiRequest;
+        return user ? { ...user, email: user.email } : null;
       }
       return null;
     },
     async signUp(user: User, account: Account, profile: Profile) {
       const { email, password } = user;
-      const session = await authController.signUpWithEmail(email, password);
-      return session.user as NextAuthUser;
+      const user = await authController.signInWithPassword(email, password);
+      return user ? { ...user, email } : null;
     },
-    async session(session: any, user: NextAuthUser) {
-      const dbUser = await authService.getUserById(user.id);
-      if (dbUser) {
-        session.user = dbUser;
-      }
-      return session;
-    },
+  },
+  session: {
+    strategy: "jwt",
   },
   pages: {
     signIn: "/auth/signin",
